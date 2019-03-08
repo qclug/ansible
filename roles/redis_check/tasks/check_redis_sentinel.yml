@@ -1,0 +1,39 @@
+- name: Find alive IP
+  wait_for:
+    host: "{{ wait_for_host_item }}"
+    port: "{{ redis_sentinel_port }}"
+    timeout: 5
+  with_items:
+    - "{{ groups[application_group_name] }}"
+  loop_control:
+    loop_var: wait_for_host_item
+  delegate_to: 127.0.0.1
+  register: alive_check
+  ignore_errors: yes
+
+- name: Determine alive node
+  set_fact:
+    alive_redis_node: "{{ alive_check_item.wait_for_host_item }}"
+  with_items: "{{ alive_check.results }}"
+  loop_control:
+    loop_var: alive_check_item
+  no_log: True
+
+- name: "Check that /docker/{{ container_name }}/{{ config_filename }} exists"
+  stat:
+    path: "/docker/{{ container_name }}/{{ config_filename }}"
+  register: stat_result
+
+- name: Determine redis sentinel master
+  shell: "redis-cli -h {{ alive_redis_node }} -p {{ redis_sentinel_port }} SENTINEL get-master-addr-by-name {{ redis_sentinel_master_set_name }}"
+  register: sentinel_master
+  ignore_errors: yes
+
+- name: Add redis sentinel master to dictionary
+  set_fact:
+    redis_sentinel_master_dict: "{{ (redis_sentinel_master_dict | combine({ redis_sentinel_master_set_name:sentinel_master.stdout_lines[0] })) if redis_sentinel_master_dict is defined else { redis_sentinel_master_set_name:sentinel_master.stdout_lines[0] } }}"
+
+- name: "========== The Sentinel Master for {{ redis_sentinel_master_set_name }} is =========="
+  debug:
+    msg: "{{ redis_sentinel_master_dict }}"
+  when: redis_sentinel_master_dict is defined
