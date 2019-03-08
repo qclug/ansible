@@ -1,0 +1,33 @@
+---
+- name: "Pull {{ image_name }}:{{ image_tag }} image from {{ registry_server }}/{{ registry_project }}"
+  docker_image:
+    tag: "{{ image_tag }}"
+    name: "{{ registry_server }}/{{ registry_project }}/{{ image_name }}"
+  become: true
+
+- name: Contents of changed_status_dict
+  debug:
+    msg: "{{ changed_status_dict }}"
+  when: changed_status_dict is defined
+
+- name: "Create/Start/Restart {{ registry_server }}/{{ registry_project }}/{{ container_name }} container from image {{ image_name }}"
+  docker_container:
+    name: "{{ container_name }}"
+    image: "{{ registry_server }}/{{ registry_project }}/{{ image_name }}:{{ image_tag }}"
+    state: "{{ item }}"
+    recreate: "{{ container_recreate }}"
+    command: "{{ (container_command == '') | ternary(omit, container_command) }}"
+    exposed_ports: "{{ (container_exposed_ports == []) | ternary(omit, container_exposed_ports) }}"
+    published_ports: "{{ (container_published_ports == []) | ternary(omit, container_published_ports) }}"
+    volumes: "{{ (container_volumes == []) | ternary(omit, container_volumes) }}"
+    sysctls: "{{ (container_sysctls == {}) | ternary(omit, container_sysctls) }}"
+    tmpfs: "{{ (container_tmpfs == []) | ternary(omit, container_tmpfs) }}"
+    capabilities: "{{ (container_capabilities == []) | ternary(omit, container_capabilities) }}"
+    networks: "{{ (container_networks == []) | ternary(omit, container_networks) }}"
+    restart_policy: "{{ container_restart_policy }}"
+    interactive: yes
+    tty: yes
+  with_items:
+    - "{{ (changed_status_dict[container_name] | bool == true) | ternary('stopped', omit) if container_name in changed_status_dict else omit }}"
+    - "{{ container_state }}"
+  become: true

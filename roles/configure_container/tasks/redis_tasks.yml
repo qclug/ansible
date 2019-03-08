@@ -1,0 +1,42 @@
+- name: "Check that /docker/{{ container_name }}/{{ config_filename }} exists"
+  stat:
+    path: "/docker/{{ container_name }}/{{ config_filename }}"
+  register: stat_result
+
+- name: Determine redis replication status
+  shell: "redis-cli -h {{ status_node_item }} -p {{ redis_master_port }} -a {{ redis_requirepass }} INFO replication"
+  register: redis_info_replication
+  when:
+    - stat_result.stat.exists == True
+  with_items:
+    - "{{ groups[application_group_name] }}"
+  loop_control:
+    loop_var: status_node_item
+  ignore_errors: yes
+  no_log: True
+
+- name: Determine redis master
+  set_fact:
+    redis_master: "{{ replication_item.stdout_lines[2].split(':')[1] }}"
+  with_items: "{{ redis_info_replication.results }}"
+  when:
+    - replication_item.failed is defined and replication_item.failed == False
+    - replication_item.skipped is not defined
+    - replication_item.stdout_lines[1] is search('role:slave')
+    - stat_result.stat.exists == True
+  loop_control:
+    loop_var: replication_item
+
+- name: debug redis_master
+  debug:
+    msg: "{{ redis_master }}"
+  when: redis_master is defined
+
+- name: "Set redis_master_host and configure_container"
+  set_fact:
+    configure_container: "{{ (redis_master is defined | ternary(False, True)) if stat_result.stat.exists else True }}"
+    redis_master_host: "{{ redis_master is defined | ternary(redis_master, redis_node_a) }}"
+
+- name: "redis_master_host has been set to {{ redis_master_host }}"
+  debug:
+    msg: "{{ redis_master_host }}"

@@ -1,0 +1,19 @@
+---
+registry_server: docker.io
+registry_project: library
+
+image_name: hello-world
+image_tag: latest
+
+container_name: hello-world
+container_state: started
+container_recreate: no
+container_command: ''
+container_exposed_ports: []
+container_published_ports: []
+container_volumes: []
+container_sysctls: {}
+container_tmpfs: []
+container_capabilities: []
+container_networks: []
+container_restart_policy: unless-stopped
