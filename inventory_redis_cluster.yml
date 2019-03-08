@@ -1,0 +1,11 @@
+---
+redis_cluster:
+  hosts:
+    116.203.124.67:
+      node: A
+    116.203.124.97:
+      node: B
+    116.203.124.77:
+      node: C
+  vars:
+    application_group_name: redis_cluster

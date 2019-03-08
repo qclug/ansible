@@ -1,0 +1,245 @@
+---
+redis_container_globals:
+  registry_server: docker.io
+  registry_project: library
+  image_name: redis
+  image_tag: 5.0.3
+  exporter_image_name: redis_exporter
+  exporter_image_tag: v0.30.0
+  exporter_registry_project: oliver006
+  container_command: 'redis-server /usr/local/etc/redis/redis.conf'
+  container_sysctls:
+    net.core.somaxconn: 65535
+  config_filename: redis.conf
+  redis_maxmemory: 200m
+  redis_maxmemory_policy: allkeys-lru
+  redis_tcp_keepalive: 150
+  redis_timeout: 180
+  owner_user: 999
+  owner_group: 999
+
+redis_sentinel_container_globals:
+  container_command: 'redis-sentinel /usr/local/etc/redis/sentinel.conf'
+  config_filename: sentinel.conf
+  redis_sentinel_quorum_count: 2
+  redis_sentinel_down_after_milliseconds: 5000
+  redis_sentinel_failover_timeout: 60000
+  redis_sentinel_parallel_syncs: 1
+
+redis_containers:
+  - container_name: app1_redis
+    password: s3cr37
+    container_exposed_ports:
+      - 6379
+    container_published_ports:
+      - 6379:6379
+    container_volumes:
+      - /docker/app1_redis:/usr/local/etc/redis
+    container_networks:
+      - name: br-redis
+  - container_name: app2_redis
+    password: s3cr37
+    container_exposed_ports:
+      - 6379
+    container_published_ports:
+      - 6380:6379
+    container_volumes:
+      - /docker/app2_redis:/usr/local/etc/redis
+    container_networks:
+      - name: br-redis
+  - container_name: app3_redis
+    password: s3cr37
+    container_exposed_ports:
+      - 6379
+    container_published_ports:
+      - 6381:6379
+    container_volumes:
+      - /docker/app3_redis:/usr/local/etc/redis
+    container_networks:
+      - name: br-redis
+  - container_name: app4_redis
+    password: s3cr37
+    container_exposed_ports:
+      - 6379
+    container_published_ports:
+      - 6382:6379
+    container_volumes:
+      - /docker/app4_redis:/usr/local/etc/redis
+    container_networks:
+      - name: br-redis
+  - container_name: app5_redis
+    password: s3cr37
+    container_exposed_ports:
+      - 6379
+    container_published_ports:
+      - 6383:6379
+    container_volumes:
+      - /docker/app5_redis:/usr/local/etc/redis
+    container_networks:
+      - name: br-redis
+  - container_name: app6_redis
+    password: s3cr37
+    container_exposed_ports:
+      - 6379
+    container_published_ports:
+      - 6384:6379
+    container_volumes:
+      - /docker/app6_redis:/usr/local/etc/redis
+    container_networks:
+      - name: br-redis
+  - container_name: app7_redis
+    password: s3cr37
+    container_exposed_ports:
+      - 6379
+    container_published_ports:
+      - 6385:6379
+    container_volumes:
+      - /docker/app7_redis:/usr/local/etc/redis
+    container_networks:
+      - name: br-redis
+
+
+redis_exporter_containers:
+  - container_name: app1_redis_exporter
+    password: "{{ redis_containers[0].password }}"
+    container_exposed_ports:
+      - 9121
+    container_published_ports:
+      - 9121:9121
+    container_networks:
+      - name: br-redis
+    container_command: "-redis.addr redis://{{ redis_containers[0].container_name }}:{{ redis_containers[0].container_exposed_ports[0] }}"
+  - container_name: app2_redis_exporter
+    password: "{{ redis_containers[1].password }}"
+    container_exposed_ports:
+      - 9121
+    container_published_ports:
+      - 9122:9121
+    container_networks:
+      - name: br-redis
+    container_command: "-redis.addr redis://{{ redis_containers[1].container_name }}:{{ redis_containers[1].container_exposed_ports[0] }}"
+  - container_name: app3_redis_exporter
+    password: "{{ redis_containers[2].password }}"
+    container_exposed_ports:
+      - 9121
+    container_published_ports:
+      - 9123:9121
+    container_networks:
+      - name: br-redis
+    container_command: "-redis.addr redis://{{ redis_containers[2].container_name }}:{{ redis_containers[2].container_exposed_ports[0] }}"
+  - container_name: app4_redis_exporter
+    password: "{{ redis_containers[3].password }}"
+    container_exposed_ports:
+      - 9121
+    container_published_ports:
+      - 9124:9121
+    container_networks:
+      - name: br-redis
+    container_command: "-redis.addr redis://{{ redis_containers[3].container_name }}:{{ redis_containers[3].container_exposed_ports[0] }}"
+  - container_name: app5_redis_exporter
+    password: "{{ redis_containers[4].password }}"
+    container_exposed_ports:
+      - 9121
+    container_published_ports:
+      - 9125:9121
+    container_networks:
+      - name: br-redis
+    container_command: "-redis.addr redis://{{ redis_containers[4].container_name }}:{{ redis_containers[4].container_exposed_ports[0] }}"
+  - container_name: app6_redis_exporter
+    password: "{{ redis_containers[5].password }}"
+    container_exposed_ports:
+      - 9121
+    container_published_ports:
+      - 9126:9121
+    container_networks:
+      - name: br-redis
+    container_command: "-redis.addr redis://{{ redis_containers[5].container_name }}:{{ redis_containers[5].container_exposed_ports[0] }}"
+  - container_name: app7_redis_exporter
+    password: "{{ redis_containers[6].password }}"
+    container_exposed_ports:
+      - 9121
+    container_published_ports:
+      - 9127:9121
+    container_networks:
+      - name: br-redis
+    container_command: "-redis.addr redis://{{ redis_containers[6].container_name }}:{{ redis_containers[6].container_exposed_ports[0] }}"
+
+
+redis_sentinel_containers:
+  - container_name: app1_redis_sentinel
+    password: "{{ redis_containers[0].password }}"
+    container_exposed_ports:
+      - 26379
+    container_published_ports:
+      - 26379:26379
+    container_volumes:
+      - /docker/app1_redis_sentinel:/usr/local/etc/redis
+    container_networks:
+      - name: br-redis
+    redis_master_port: "{{ redis_containers[0].container_published_ports[0].split(':')[0] }}"
+  - container_name: app2_redis_sentinel
+    password: "{{ redis_containers[1].password }}"
+    container_exposed_ports:
+      - 26380
+    container_published_ports:
+      - 26380:26380
+    container_volumes:
+      - /docker/app2_redis_sentinel:/usr/local/etc/redis
+    container_networks:
+      - name: br-redis
+    redis_master_port: "{{ redis_containers[1].container_published_ports[0].split(':')[0] }}"
+  - container_name: app3_redis_sentinel
+    password: "{{ redis_containers[2].password }}"
+    container_exposed_ports:
+      - 26381
+    container_published_ports:
+      - 26381:26381
+    container_volumes:
+      - /docker/app3_redis_sentinel:/usr/local/etc/redis
+    container_networks:
+      - name: br-redis
+    redis_master_port: "{{ redis_containers[2].container_published_ports[0].split(':')[0] }}"
+  - container_name: app4_redis_sentinel
+    password: "{{ redis_containers[3].password }}"
+    container_exposed_ports:
+      - 26382
+    container_published_ports:
+      - 26382:26382
+    container_volumes:
+      - /docker/app4_redis_sentinel:/usr/local/etc/redis
+    container_networks:
+      - name: br-redis
+    redis_master_port: "{{ redis_containers[3].container_published_ports[0].split(':')[0] }}"
+  - container_name: app5_redis_sentinel
+    password: "{{ redis_containers[4].password }}"
+    container_exposed_ports:
+      - 26383
+    container_published_ports:
+      - 26383:26383
+    container_volumes:
+      - /docker/app5_redis_sentinel:/usr/local/etc/redis
+    container_networks:
+      - name: br-redis
+    redis_master_port: "{{ redis_containers[4].container_published_ports[0].split(':')[0] }}"
+  - container_name: app6_redis_sentinel
+    password: "{{ redis_containers[5].password }}"
+    container_exposed_ports:
+      - 26384
+    container_published_ports:
+      - 26384:26384
+    container_volumes:
+      - /docker/app6_redis_sentinel:/usr/local/etc/redis
+    container_networks:
+      - name: br-redis
+    redis_master_port: "{{ redis_containers[5].container_published_ports[0].split(':')[0] }}"
+  - container_name: app7_redis_sentinel
+    password: "{{ redis_containers[6].password }}"
+    container_exposed_ports:
+      - 26385
+    container_published_ports:
+      - 26385:26385
+    container_volumes:
+      - /docker/app7_redis_sentinel:/usr/local/etc/redis
+    container_networks:
+      - name: br-redis
+    redis_master_port: "{{ redis_containers[6].container_published_ports[0].split(':')[0] }}"

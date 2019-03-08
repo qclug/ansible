@@ -1,0 +1,197 @@
+---
+- hosts: all
+
+  pre_tasks:
+    - block:
+      - name: Check if docker-ce package is installed
+        yum:
+          list: 'docker-ce'
+        register: package_check
+
+      - name: Set skip_docker variable
+        set_fact:
+          skip_docker: True
+        when: ('installed' in package.yumstate and 'docker-ce' in package.name)
+        with_items: "{{ package_check.results }}"
+        loop_control:
+          loop_var: package
+
+      - name: Install epel.
+        package:
+          name: epel-release
+          state: present
+
+      - name: Install pip.
+        package:
+          name: python2-pip
+          state: present
+
+      - name: Install docker-py.
+        pip:
+          name: docker-py
+          state: present
+
+      - name: Run docker role only on new clusters or if force_docker_update is defined
+        include_role:
+          name: docker
+        when: (force_docker_update is defined) or (skip_docker is undefined)
+
+      - name: Ensure redis-cli is installed...
+        package:
+          name: redis
+          state: present
+
+      become: yes
+
+  tasks:
+    - name: Create br-redis network
+      docker_network:
+        name: br-redis
+      become: yes
+
+    - name: Determine redis_node_a
+      set_fact:
+        redis_node_a: "{{ redis_host }}"
+      with_items:
+        - "{{ groups[application_group_name] }}"
+      when:
+        - hostvars[redis_host].node is search("A")
+      loop_control:
+        loop_var: redis_host
+
+    - name: Determine existing containers
+      shell: 'docker ps -a --format {%raw%}"table {{.Names}}"{%endraw%}'
+      register: existing_containers
+      become: yes
+
+    - name: Configure redis containers
+      include_role:
+        name: configure_container
+      vars:
+        custom_tasks: True
+        container_type: redis
+        container_name: "{{ redis_config_item.container_name }}"
+        config_filename: "{{ redis_container_globals.config_filename }}"
+        redis_maxmemory: "{{ redis_container_globals.redis_maxmemory }}"
+        redis_maxmemory_policy: "{{ redis_container_globals.redis_maxmemory_policy }}"
+        redis_tcp_keepalive: "{{ redis_container_globals.redis_tcp_keepalive }}"
+        redis_timeout: "{{ redis_container_globals.redis_timeout }}"
+        redis_requirepass: "{{ redis_config_item.password }}"
+        redis_slave: "{{ (node == 'A') | ternary('false', 'true') }}"
+        redis_master_port: "{{ redis_config_item.container_published_ports[0].split(':')[0] }}"
+        redis_host_ip: "{{ ansible_default_ipv4.address }}"
+        owner_user: "{{ redis_container_globals.owner_user }}"
+        owner_group: "{{ redis_container_globals.owner_group }}"
+      become: yes
+      with_items:
+        - "{{ redis_containers }}"
+      loop_control:
+        loop_var: redis_config_item
+      when:
+        - (redis_config_item.container_name not in existing_containers.stdout_lines) or (bootstrap_redis_cluster is defined and bootstrap_redis_cluster | bool == true)
+
+    - name: Create redis containers
+      include_role:
+        name: create_container
+      vars:
+        registry_server: "{{ redis_container_globals.registry_server }}"
+        registry_project: "{{ redis_container_globals.registry_project }}"
+        image_name: "{{ redis_container_globals.image_name }}"
+        image_tag: "{{ redis_container_globals.image_tag }}"
+        container_name: "{{ redis_item.container_name }}"
+        container_command: "{{ redis_container_globals.container_command }}"
+        container_exposed_ports: "{{ redis_item.container_exposed_ports }}"
+        container_published_ports: "{{ redis_item.container_published_ports }}"
+        container_volumes: "{{ redis_item.container_volumes }}"
+        container_sysctls: "{{ redis_container_globals.container_sysctls }}"
+        container_networks: "{{ redis_item.container_networks }}"
+      become: yes
+      with_items:
+        - "{{ redis_containers }}"
+      loop_control:
+        loop_var: redis_item
+      when:
+        - (redis_item.container_name not in existing_containers.stdout_lines) or (bootstrap_redis_cluster is defined and bootstrap_redis_cluster | bool == true)
+
+    - name: Configure redis sentinel containers
+      include_role:
+        name: configure_container
+      vars:
+        custom_tasks: True
+        container_type: redis_sentinel
+        container_name: "{{ redis_sentinel_config_item.container_name }}"
+        config_filename: "{{ redis_sentinel_container_globals.config_filename }}"
+        redis_requirepass: "{{ redis_sentinel_config_item.password }}"
+        redis_sentinel_port: "{{ redis_sentinel_config_item.container_exposed_ports[0] }}"
+        redis_sentinel_quorum_count: "{{ redis_sentinel_container_globals.redis_sentinel_quorum_count }}"
+        redis_sentinel_master_set_name: "{{ container_name }}_master_set"
+        redis_master_port: "{{ redis_sentinel_config_item.redis_master_port }}"
+        redis_sentinel_down_after_milliseconds: "{{ redis_sentinel_container_globals.redis_sentinel_down_after_milliseconds }}"
+        redis_sentinel_failover_timeout: "{{ redis_sentinel_container_globals.redis_sentinel_failover_timeout }}"
+        redis_sentinel_parallel_syncs: "{{ redis_sentinel_container_globals.redis_sentinel_parallel_syncs }}"
+        redis_host_ip: "{{ ansible_default_ipv4.address }}"
+        owner_user: "{{ redis_container_globals.owner_user }}"
+        owner_group: "{{ redis_container_globals.owner_group }}"
+      become: yes
+      with_items:
+        - "{{ redis_sentinel_containers }}"
+      loop_control:
+        loop_var: redis_sentinel_config_item
+      when:
+        - (redis_sentinel_config_item.container_name not in existing_containers.stdout_lines) or (bootstrap_redis_cluster is defined and bootstrap_redis_cluster | bool == true)
+
+    - name: Create redis sentinel containers
+      include_role:
+        name: create_container
+      vars:
+        registry_server: "{{ redis_container_globals.registry_server }}"
+        registry_project: "{{ redis_container_globals.registry_project }}"
+        image_name: "{{ redis_container_globals.image_name }}"
+        image_tag: "{{ redis_container_globals.image_tag }}"
+        container_name: "{{ redis_sentinel_item.container_name }}"
+        container_command: "{{ redis_sentinel_container_globals.container_command }}"
+        container_exposed_ports: "{{ redis_sentinel_item.container_exposed_ports }}"
+        container_published_ports: "{{ redis_sentinel_item.container_published_ports }}"
+        container_volumes: "{{ redis_sentinel_item.container_volumes }}"
+        container_sysctls: "{{ redis_container_globals.container_sysctls }}"
+        container_networks: "{{ redis_sentinel_item.container_networks }}"
+      become: yes
+      with_items:
+        - "{{ redis_sentinel_containers }}"
+      loop_control:
+        loop_var: redis_sentinel_item
+      when:
+        - (redis_sentinel_item.container_name not in existing_containers.stdout_lines) or (bootstrap_redis_cluster is defined and bootstrap_redis_cluster | bool == true)
+
+    - name: Create prometheus redis_exporter containers
+      include_role:
+        name: create_container
+      vars:
+        registry_server: "{{ redis_container_globals.registry_server }}"
+        registry_project: "{{ redis_container_globals.exporter_registry_project }}"
+        image_name: "{{ redis_container_globals.exporter_image_name }}"
+        image_tag: "{{ redis_container_globals.exporter_image_tag }}"
+        container_name: "{{ exporter_item.container_name }}"
+        container_command: "{{ exporter_item.container_command }} -redis.password {{ exporter_item.password }}"
+        container_exposed_ports: "{{ exporter_item.container_exposed_ports }}"
+        container_published_ports: "{{ exporter_item.container_published_ports }}"
+        container_networks: "{{ exporter_item.container_networks }}"
+      become: yes
+      with_items:
+        - "{{ redis_exporter_containers }}"
+      loop_control:
+        loop_var: exporter_item
+      when:
+        - (exporter_item.container_name not in existing_containers.stdout_lines) or (bootstrap_redis_cluster is defined and bootstrap_redis_cluster | bool == true)
+
+  post_tasks:
+    - name: Disable Docker repo to avoid unexpected patching
+      yum_repository:
+        name: docker-ce-stable
+        file: docker-ce
+        description: Docker CE Stable - $basearch
+        baseurl: https://download.docker.com/linux/centos/7/$basearch/stable
+        gpgkey: https://download.docker.com/linux/centos/gpg
+        gpgcheck: yes
+        enabled: no
+      become: yes

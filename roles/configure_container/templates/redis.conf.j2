@@ -1,0 +1,15 @@
+maxmemory {{ redis_maxmemory }}
+maxmemory-policy {{ redis_maxmemory_policy }}
+requirepass {{ redis_requirepass }}
+tcp-keepalive {{ redis_tcp_keepalive }}
+timeout {{ redis_timeout }}
+min-slaves-to-write 1
+min-slaves-max-lag 10
+# masterauth is required on all nodes during master re-election
+# https://gitlab.com/gitlab-org/omnibus-gitlab/issues/1565
+masterauth {{ redis_requirepass }}
+{% if redis_slave == 'true' %}
+slaveof {{ redis_master_host }} {{ redis_master_port }}
+slave-announce-ip {{ redis_host_ip }}
+slave-announce-port {{ redis_master_port }}
+{% endif %}
