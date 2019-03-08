@@ -1,0 +1,38 @@
+- name: "Check that /docker/{{ container_name }}/{{ config_filename }} exists"
+  stat:
+    path: "/docker/{{ container_name }}/{{ config_filename }}"
+  register: stat_result
+
+- name: Determine redis replication status
+  shell: "redis-cli -h {{ status_node_item }} -p {{ redis_master_port }} -a {{ redis_requirepass }} INFO replication"
+  register: redis_info_replication
+  when:
+    - stat_result.stat.exists == True
+  with_items:
+    - "{{ groups[application_group_name] }}"
+  loop_control:
+    loop_var: status_node_item
+  ignore_errors: yes
+  no_log: True
+
+- name: Determine redis master
+  set_fact:
+    redis_master: "{'{{ container_name }}':'{{ replication_item.stdout_lines[2].split(':')[1] }}'}"
+  with_items: "{{ redis_info_replication.results }}"
+  when:
+    - replication_item.failed is defined and replication_item.failed == False
+    - replication_item.skipped is not defined
+    - replication_item.stdout_lines[1] is search('role:slave')
+    - stat_result.stat.exists == True
+  loop_control:
+    loop_var: replication_item
+  no_log: True
+
+- name: Add redis master to dictionary
+  set_fact:
+    redis_master_dict: "{{ (redis_master_dict | combine(redis_master)) if redis_master_dict is defined else redis_master }}"
+
+- name: "========== The Redis Master for {{ container_name }} is =========="
+  debug:
+    msg: "{{ redis_master_dict }}"
+  when: redis_master_dict is defined

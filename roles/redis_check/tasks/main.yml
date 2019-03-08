@@ -1,0 +1,3 @@
+---
+- name: "Run {{ container_type }} checks"
+  include_tasks: "check_{{ container_type }}.yml"

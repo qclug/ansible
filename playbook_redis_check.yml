@@ -1,0 +1,42 @@
+---
+- hosts: all
+  tasks:
+
+    - name: Check redis containers
+      include_role:
+        name: redis_check
+      vars:
+        container_type: redis
+        container_name: "{{ redis_config_item.container_name }}"
+        config_filename: "{{ redis_container_globals.config_filename }}"
+        redis_requirepass: "{{ redis_config_item.password }}"
+        redis_master_port: "{{ redis_config_item.container_published_ports[0].split(':')[0] }}"
+      with_items:
+        - "{{ redis_containers }}"
+      loop_control:
+        loop_var: redis_config_item
+
+    - name: Check redis sentinel containers
+      include_role:
+        name: redis_check
+      vars:
+        container_type: redis_sentinel
+        container_name: "{{ redis_sentinel_config_item.container_name }}"
+        config_filename: "{{ redis_sentinel_container_globals.config_filename }}"
+        redis_requirepass: "{{ redis_sentinel_config_item.password }}"
+        redis_sentinel_port: "{{ redis_sentinel_config_item.container_exposed_ports[0] }}"
+        redis_sentinel_master_set_name: "{{ container_name }}_master_set"
+        redis_master_port: "{{ redis_sentinel_config_item.redis_master_port }}"
+      with_items:
+        - "{{ redis_sentinel_containers }}"
+      loop_control:
+        loop_var: redis_sentinel_config_item
+
+  post_tasks:
+    - name: "=========== Redis Master Results ==========="
+      debug:
+        msg: "{{ redis_master_dict }}"
+
+    - name: "=========== Redis Sentinel Master Results ==========="
+      debug:
+        msg: "{{ redis_sentinel_master_dict }}"
