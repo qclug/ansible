@@ -1,29 +1,35 @@
 ---
 - hosts: all
+  vars:
+    docker_apt_arch: amd64
+    docker_apt_release_channel: stable
 
   pre_tasks:
     - block:
+
+      - name: Gather package facts
+        package_facts:
+          manager: auto
+
       - name: Check if docker-ce package is installed
-        yum:
-          list: 'docker-ce'
-        register: package_check
+        debug:
+          msg: "{{ ansible_facts.packages['docker-ce'] | length }} version(s) of docker-ce are installed!"
+        when: "'docker-ce' in ansible_facts.packages"
 
       - name: Set skip_docker variable
         set_fact:
           skip_docker: True
-        when: ('installed' in package.yumstate and 'docker-ce' in package.name)
-        with_items: "{{ package_check.results }}"
-        loop_control:
-          loop_var: package
+        when: "'docker-ce' in ansible_facts.packages"
 
-      - name: Install epel.
+      - name: "Install epel - [RedHat]"
         package:
           name: epel-release
           state: present
+        when: ansible_facts['os_family'] == "RedHat"
 
       - name: Install pip.
         package:
-          name: python2-pip
+          name: python3-pip
           state: present
 
       - name: Install docker-py.
@@ -36,10 +42,17 @@
           name: docker
         when: (force_docker_update is defined) or (skip_docker is undefined)
 
-      - name: Ensure redis-cli is installed...
+      - name: "Ensure redis-cli is installed... - [RedHat]"
         package:
           name: redis
           state: present
+        when: ansible_facts['os_family'] == "RedHat"
+
+      - name: "Ensure redis-cli is installed... - [Debian]"
+        package:
+          name: redis-tools
+          state: present
+        when: ansible_facts['os_family'] == "Debian"
 
       become: yes
 
@@ -82,7 +95,6 @@
         redis_host_ip: "{{ ansible_default_ipv4.address }}"
         owner_user: "{{ redis_container_globals.owner_user }}"
         owner_group: "{{ redis_container_globals.owner_group }}"
-      become: yes
       with_items:
         - "{{ redis_containers }}"
       loop_control:
@@ -105,7 +117,6 @@
         container_volumes: "{{ redis_item.container_volumes }}"
         container_sysctls: "{{ redis_container_globals.container_sysctls }}"
         container_networks: "{{ redis_item.container_networks }}"
-      become: yes
       with_items:
         - "{{ redis_containers }}"
       loop_control:
@@ -132,7 +143,6 @@
         redis_host_ip: "{{ ansible_default_ipv4.address }}"
         owner_user: "{{ redis_container_globals.owner_user }}"
         owner_group: "{{ redis_container_globals.owner_group }}"
-      become: yes
       with_items:
         - "{{ redis_sentinel_containers }}"
       loop_control:
@@ -155,7 +165,6 @@
         container_volumes: "{{ redis_sentinel_item.container_volumes }}"
         container_sysctls: "{{ redis_container_globals.container_sysctls }}"
         container_networks: "{{ redis_sentinel_item.container_networks }}"
-      become: yes
       with_items:
         - "{{ redis_sentinel_containers }}"
       loop_control:
@@ -176,7 +185,6 @@
         container_exposed_ports: "{{ exporter_item.container_exposed_ports }}"
         container_published_ports: "{{ exporter_item.container_published_ports }}"
         container_networks: "{{ exporter_item.container_networks }}"
-      become: yes
       with_items:
         - "{{ redis_exporter_containers }}"
       loop_control:
@@ -185,7 +193,7 @@
         - (exporter_item.container_name not in existing_containers.stdout_lines) or (bootstrap_redis_cluster is defined and bootstrap_redis_cluster | bool == true)
 
   post_tasks:
-    - name: Disable Docker repo to avoid unexpected patching
+    - name: "Disable Docker repo to avoid unexpected patching - [RedHat]"
       yum_repository:
         name: docker-ce-stable
         file: docker-ce
@@ -195,3 +203,11 @@
         gpgcheck: yes
         enabled: no
       become: yes
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: "Disable Docker repo to avoid unexpected patching - [Debian]"
+      apt_repository:
+        repo: "deb [arch={{ docker_apt_arch }}] https://download.docker.com/linux/{{ ansible_distribution | lower }} {{ ansible_distribution_release }} {{ docker_apt_release_channel }}"
+        state: absent
+      become: yes
+      when: ansible_facts['os_family'] == "Debian"

@@ -3,6 +3,7 @@
   docker_image:
     tag: "{{ image_tag }}"
     name: "{{ registry_server }}/{{ registry_project }}/{{ image_name }}"
+    source: "pull"
   become: true
 
 - name: Contents of changed_status_dict
@@ -17,7 +18,7 @@
     state: "{{ item }}"
     recreate: "{{ container_recreate }}"
     command: "{{ (container_command == '') | ternary(omit, container_command) }}"
-    exposed_ports: "{{ (container_exposed_ports == []) | ternary(omit, container_exposed_ports) }}"
+    exposed_ports: "{{ (container_exposed_ports == []) | ternary(omit, container_exposed_ports) }} | int"
     published_ports: "{{ (container_published_ports == []) | ternary(omit, container_published_ports) }}"
     volumes: "{{ (container_volumes == []) | ternary(omit, container_volumes) }}"
     sysctls: "{{ (container_sysctls == {}) | ternary(omit, container_sysctls) }}"
